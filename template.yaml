@@ -1,0 +1,509 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Serverless AI-Powered Wedding Photo Sharing & Retrieval Platform on AWS.
+  Guests can upload photos/videos, search for themselves via a selfie,
+  and automatically receive curated photos of the couple.
+
+Globals:
+  Function:
+    Runtime: python3.12
+    Timeout: 30
+    MemorySize: 256
+    Environment:
+      Variables:
+        MEDIA_BUCKET: !Ref MediaBucket
+        METADATA_TABLE: !Ref MediaMetadataTable
+        REKOGNITION_COLLECTION_ID: !Sub "wedding-faces-${AWS::StackName}"
+        POWERTOOLS_SERVICE_NAME: wedding-platform
+        LOG_LEVEL: INFO
+  Api:
+    Cors:
+      AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
+      AllowHeaders: "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
+      AllowOrigin: "'*'"
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues: [dev, staging, prod]
+    Description: Deployment environment
+
+  CoupleFaceIds:
+    Type: String
+    Default: ""
+    Description: >
+      Comma-separated list of Rekognition FaceIds that belong to the couple.
+      Used to automatically tag and surface couple photos to all guests.
+
+Resources:
+
+  # ─── S3 Buckets ─────────────────────────────────────────────────────────────
+
+  MediaBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "wedding-media-${AWS::AccountId}-${AWS::StackName}"
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders: ["*"]
+            AllowedMethods: [GET, PUT, POST, DELETE, HEAD]
+            AllowedOrigins: ["*"]
+            ExposedHeaders: [ETag]
+            MaxAge: 3600
+      LifecycleConfiguration:
+        Rules:
+          - Id: TransitionToIA
+            Status: Enabled
+            Transitions:
+              - TransitionInDays: 90
+                StorageClass: STANDARD_IA
+      NotificationConfiguration:
+        LambdaConfigurations:
+          - Event: "s3:ObjectCreated:*"
+            Filter:
+              S3Key:
+                Rules:
+                  - Name: prefix
+                    Value: "uploads/"
+            Function: !GetAtt ProcessMediaFunction.Arn
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  MediaBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref MediaBucket
+      PolicyDocument:
+        Statement:
+          - Sid: DenyNonTLS
+            Effect: Deny
+            Principal: "*"
+            Action: "s3:*"
+            Resource:
+              - !Sub "arn:aws:s3:::${MediaBucket}"
+              - !Sub "arn:aws:s3:::${MediaBucket}/*"
+            Condition:
+              Bool:
+                "aws:SecureTransport": "false"
+
+  FrontendBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "wedding-frontend-${AWS::AccountId}-${AWS::StackName}"
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      WebsiteConfiguration:
+        IndexDocument: index.html
+        ErrorDocument: index.html
+
+  # ─── CloudFront ─────────────────────────────────────────────────────────────
+
+  CloudFrontOAC:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub "wedding-oac-${AWS::StackName}"
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  FrontendBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref FrontendBucket
+      PolicyDocument:
+        Statement:
+          - Sid: AllowCloudFrontAccess
+            Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: "s3:GetObject"
+            Resource: !Sub "arn:aws:s3:::${FrontendBucket}/*"
+            Condition:
+              StringEquals:
+                "AWS:SourceArn": !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/${CloudFrontDistribution}"
+
+  CloudFrontDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        DefaultCacheBehavior:
+          AllowedMethods: [GET, HEAD, OPTIONS]
+          CachedMethods: [GET, HEAD]
+          Compress: true
+          ForwardedValues:
+            QueryString: false
+            Cookies:
+              Forward: none
+          TargetOriginId: FrontendOrigin
+          ViewerProtocolPolicy: redirect-to-https
+        DefaultRootObject: index.html
+        Enabled: true
+        HttpVersion: http2
+        Origins:
+          - Id: FrontendOrigin
+            DomainName: !GetAtt FrontendBucket.RegionalDomainName
+            OriginAccessControlId: !GetAtt CloudFrontOAC.Id
+            S3OriginConfig:
+              OriginAccessIdentity: ""
+        PriceClass: PriceClass_100
+        CustomErrorResponses:
+          - ErrorCode: 404
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+          - ErrorCode: 403
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+
+  # ─── Cognito ─────────────────────────────────────────────────────────────────
+
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: !Sub "wedding-users-${AWS::StackName}"
+      AutoVerifiedAttributes: [email]
+      UsernameAttributes: [email]
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: false
+          RequireUppercase: true
+      Schema:
+        - Name: email
+          AttributeDataType: String
+          Mutable: false
+          Required: true
+        - Name: given_name
+          AttributeDataType: String
+          Mutable: true
+          Required: false
+        - Name: family_name
+          AttributeDataType: String
+          Mutable: true
+          Required: false
+
+  UserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      ClientName: !Sub "wedding-app-client-${AWS::StackName}"
+      UserPoolId: !Ref UserPool
+      GenerateSecret: false
+      ExplicitAuthFlows:
+        - ALLOW_USER_PASSWORD_AUTH
+        - ALLOW_USER_SRP_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+      AccessTokenValidity: 1
+      IdTokenValidity: 1
+      RefreshTokenValidity: 30
+      TokenValidityUnits:
+        AccessToken: hours
+        IdToken: hours
+        RefreshToken: days
+
+  # ─── DynamoDB ────────────────────────────────────────────────────────────────
+
+  MediaMetadataTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "wedding-media-metadata-${AWS::StackName}"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: photo_id
+          AttributeType: S
+        - AttributeName: face_id
+          AttributeType: S
+        - AttributeName: uploaded_by
+          AttributeType: S
+        - AttributeName: is_couple_photo
+          AttributeType: S
+        - AttributeName: upload_timestamp
+          AttributeType: S
+      KeySchema:
+        - AttributeName: photo_id
+          KeyType: HASH
+        - AttributeName: face_id
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: face-id-index
+          KeySchema:
+            - AttributeName: face_id
+              KeyType: HASH
+            - AttributeName: upload_timestamp
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+        - IndexName: uploader-index
+          KeySchema:
+            - AttributeName: uploaded_by
+              KeyType: HASH
+            - AttributeName: upload_timestamp
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+        - IndexName: couple-photos-index
+          KeySchema:
+            - AttributeName: is_couple_photo
+              KeyType: HASH
+            - AttributeName: upload_timestamp
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+
+  # ─── IAM Roles ───────────────────────────────────────────────────────────────
+
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "wedding-lambda-role-${AWS::StackName}"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: WeddingPlatformPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: S3Access
+                Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:DeleteObject
+                  - s3:ListBucket
+                Resource:
+                  - !GetAtt MediaBucket.Arn
+                  - !Sub "${MediaBucket.Arn}/*"
+              - Sid: S3Presign
+                Effect: Allow
+                Action:
+                  - s3:GetObject
+                Resource:
+                  - !Sub "${MediaBucket.Arn}/*"
+              - Sid: DynamoDBAccess
+                Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                Resource:
+                  - !GetAtt MediaMetadataTable.Arn
+                  - !Sub "${MediaMetadataTable.Arn}/index/*"
+              - Sid: RekognitionAccess
+                Effect: Allow
+                Action:
+                  - rekognition:IndexFaces
+                  - rekognition:SearchFacesByImage
+                  - rekognition:SearchFaces
+                  - rekognition:DeleteFaces
+                  - rekognition:CreateCollection
+                  - rekognition:DescribeCollection
+                  - rekognition:DetectFaces
+                  - rekognition:DetectLabels
+                Resource: "*"
+
+  # ─── Lambda Functions ────────────────────────────────────────────────────────
+
+  UploadHandlerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "wedding-upload-handler-${AWS::StackName}"
+      CodeUri: src/upload_handler/
+      Handler: handler.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Description: Generates presigned S3 URLs for direct client-side media uploads
+      Events:
+        GetUploadUrl:
+          Type: Api
+          Properties:
+            Path: /upload-url
+            Method: POST
+            RestApiId: !Ref WeddingApi
+
+  ProcessMediaFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "wedding-process-media-${AWS::StackName}"
+      CodeUri: src/process_media/
+      Handler: handler.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 60
+      MemorySize: 512
+      Description: >
+        Triggered by S3 uploads; indexes faces via Rekognition and stores
+        metadata in DynamoDB. Tags couple photos automatically.
+      Environment:
+        Variables:
+          COUPLE_FACE_IDS: !Ref CoupleFaceIds
+
+  ProcessMediaS3Permission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt ProcessMediaFunction.Arn
+      Action: lambda:InvokeFunction
+      Principal: s3.amazonaws.com
+      SourceArn: !GetAtt MediaBucket.Arn
+      SourceAccount: !Ref AWS::AccountId
+
+  SelfieSearchFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "wedding-selfie-search-${AWS::StackName}"
+      CodeUri: src/selfie_search/
+      Handler: handler.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 30
+      Description: >
+        Accepts a selfie image, uses Rekognition to find matching faces,
+        and returns presigned URLs for all matching wedding photos.
+      Events:
+        SearchBySelfie:
+          Type: Api
+          Properties:
+            Path: /search
+            Method: POST
+            RestApiId: !Ref WeddingApi
+
+  GetCouplePhotosFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "wedding-get-couple-photos-${AWS::StackName}"
+      CodeUri: src/get_couple_photos/
+      Handler: handler.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Description: Returns presigned URLs for all curated couple photos
+      Events:
+        GetCouplePhotos:
+          Type: Api
+          Properties:
+            Path: /couple-photos
+            Method: GET
+            RestApiId: !Ref WeddingApi
+
+  ListMediaFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "wedding-list-media-${AWS::StackName}"
+      CodeUri: src/list_media/
+      Handler: handler.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Description: Lists all wedding media with presigned download URLs
+      Events:
+        ListAllMedia:
+          Type: Api
+          Properties:
+            Path: /media
+            Method: GET
+            RestApiId: !Ref WeddingApi
+
+  DeleteMediaFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "wedding-delete-media-${AWS::StackName}"
+      CodeUri: src/delete_media/
+      Handler: handler.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Description: Deletes a photo from S3 and its metadata from DynamoDB
+      Events:
+        DeleteMedia:
+          Type: Api
+          Properties:
+            Path: /media/{photo_id}
+            Method: DELETE
+            RestApiId: !Ref WeddingApi
+
+  # ─── API Gateway ─────────────────────────────────────────────────────────────
+
+  WeddingApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      Name: !Sub "wedding-api-${AWS::StackName}"
+      StageName: !Ref Environment
+      Auth:
+        DefaultAuthorizer: CognitoAuthorizer
+        Authorizers:
+          CognitoAuthorizer:
+            UserPoolArn: !GetAtt UserPool.Arn
+        AddDefaultAuthorizerToCorsPreflight: false
+      GatewayResponses:
+        DEFAULT_4XX:
+          ResponseParameters:
+            Headers:
+              Access-Control-Allow-Origin: "'*'"
+              Access-Control-Allow-Headers: "'Content-Type,Authorization'"
+        DEFAULT_5XX:
+          ResponseParameters:
+            Headers:
+              Access-Control-Allow-Origin: "'*'"
+              Access-Control-Allow-Headers: "'Content-Type,Authorization'"
+
+# ─── Outputs ────────────────────────────────────────────────────────────────
+
+Outputs:
+  ApiEndpoint:
+    Description: API Gateway endpoint URL
+    Value: !Sub "https://${WeddingApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}"
+    Export:
+      Name: !Sub "${AWS::StackName}-ApiEndpoint"
+
+  MediaBucketName:
+    Description: S3 bucket for storing wedding media
+    Value: !Ref MediaBucket
+    Export:
+      Name: !Sub "${AWS::StackName}-MediaBucket"
+
+  FrontendBucketName:
+    Description: S3 bucket for hosting the frontend
+    Value: !Ref FrontendBucket
+    Export:
+      Name: !Sub "${AWS::StackName}-FrontendBucket"
+
+  CloudFrontUrl:
+    Description: CloudFront URL for the wedding platform
+    Value: !Sub "https://${CloudFrontDistribution.DomainName}"
+    Export:
+      Name: !Sub "${AWS::StackName}-CloudFrontUrl"
+
+  UserPoolId:
+    Description: Cognito User Pool ID
+    Value: !Ref UserPool
+    Export:
+      Name: !Sub "${AWS::StackName}-UserPoolId"
+
+  UserPoolClientId:
+    Description: Cognito User Pool Client ID
+    Value: !Ref UserPoolClient
+    Export:
+      Name: !Sub "${AWS::StackName}-UserPoolClientId"
+
+  MediaMetadataTableName:
+    Description: DynamoDB table for media metadata
+    Value: !Ref MediaMetadataTable
+    Export:
+      Name: !Sub "${AWS::StackName}-MetadataTable"
+
+  RekognitionCollectionId:
+    Description: Amazon Rekognition face collection ID
+    Value: !Sub "wedding-faces-${AWS::StackName}"
+    Export:
+      Name: !Sub "${AWS::StackName}-RekognitionCollection"

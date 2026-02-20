@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Share and discover wedding photos powered by AI facial recognition." />
+  <title>Our Wedding – Photo Sharing Platform</title>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+
+  <!-- ── Navigation ──────────────────────────────────────────────────── -->
+  <nav class="navbar" role="navigation" aria-label="Main navigation">
+    <div class="nav-brand">
+      <span class="nav-logo" aria-hidden="true">💍</span>
+      <span class="nav-title">Wedding Memories</span>
+    </div>
+    <div class="nav-links">
+      <button class="nav-btn active" data-section="gallery" aria-current="page">Gallery</button>
+      <button class="nav-btn" data-section="upload">Upload</button>
+      <button class="nav-btn" data-section="search">Find My Photos</button>
+      <button class="nav-btn" data-section="couple">Couple Photos</button>
+    </div>
+    <div class="nav-auth">
+      <button id="auth-btn" class="btn btn-outline">Sign In</button>
+      <span id="user-label" class="user-label" hidden></span>
+    </div>
+  </nav>
+
+  <!-- ── Hero ─────────────────────────────────────────────────────────── -->
+  <header class="hero" role="banner">
+    <div class="hero-content">
+      <h1 class="hero-title">Sarah &amp; James</h1>
+      <p class="hero-subtitle">June 15, 2024 · Share your memories with us</p>
+    </div>
+  </header>
+
+  <!-- ── Main Content ──────────────────────────────────────────────────── -->
+  <main class="main-content">
+
+    <!-- Auth Modal -->
+    <div id="auth-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="auth-modal-title" hidden>
+      <div class="modal-card">
+        <button class="modal-close" id="auth-modal-close" aria-label="Close">&times;</button>
+        <h2 id="auth-modal-title">Sign In / Register</h2>
+        <div class="tabs">
+          <button class="tab-btn active" data-tab="signin">Sign In</button>
+          <button class="tab-btn" data-tab="register">Register</button>
+        </div>
+
+        <!-- Sign In Form -->
+        <form id="signin-form" class="auth-form" novalidate>
+          <label for="signin-email">Email</label>
+          <input id="signin-email" type="email" autocomplete="email" placeholder="your@email.com" required />
+          <label for="signin-password">Password</label>
+          <input id="signin-password" type="password" autocomplete="current-password" placeholder="••••••••" required />
+          <button type="submit" class="btn btn-primary">Sign In</button>
+          <p class="auth-error" id="signin-error" role="alert" hidden></p>
+        </form>
+
+        <!-- Register Form -->
+        <form id="register-form" class="auth-form" novalidate hidden>
+          <label for="reg-given-name">First Name</label>
+          <input id="reg-given-name" type="text" autocomplete="given-name" placeholder="First name" />
+          <label for="reg-family-name">Last Name</label>
+          <input id="reg-family-name" type="text" autocomplete="family-name" placeholder="Last name" />
+          <label for="reg-email">Email</label>
+          <input id="reg-email" type="email" autocomplete="email" placeholder="your@email.com" required />
+          <label for="reg-password">Password</label>
+          <input id="reg-password" type="password" autocomplete="new-password" placeholder="Min 8 characters" required />
+          <button type="submit" class="btn btn-primary">Register</button>
+          <p class="auth-error" id="reg-error" role="alert" hidden></p>
+        </form>
+
+        <!-- Confirm Registration Form -->
+        <form id="confirm-form" class="auth-form" novalidate hidden>
+          <p>A verification code was sent to your email.</p>
+          <label for="confirm-code">Verification Code</label>
+          <input id="confirm-code" type="text" inputmode="numeric" placeholder="123456" required />
+          <button type="submit" class="btn btn-primary">Confirm</button>
+          <p class="auth-error" id="confirm-error" role="alert" hidden></p>
+        </form>
+      </div>
+    </div>
+
+    <!-- ── Gallery Section ──────────────────────────────────────────── -->
+    <section id="section-gallery" class="section" aria-label="Photo Gallery">
+      <div class="section-header">
+        <h2>All Wedding Photos</h2>
+        <p class="section-desc">Browse and download all shared wedding memories.</p>
+      </div>
+      <div id="gallery-grid" class="photo-grid" role="list" aria-live="polite" aria-label="Wedding photos">
+        <div class="loading-spinner" aria-label="Loading photos" id="gallery-spinner">
+          <div class="spinner"></div>
+          <p>Loading photos…</p>
+        </div>
+      </div>
+      <div class="pagination">
+        <button id="gallery-prev-btn" class="btn btn-outline" disabled>← Previous</button>
+        <button id="gallery-next-btn" class="btn btn-outline" disabled>Next →</button>
+      </div>
+    </section>
+
+    <!-- ── Upload Section ──────────────────────────────────────────── -->
+    <section id="section-upload" class="section hidden" aria-label="Upload Photos">
+      <div class="section-header">
+        <h2>Upload Your Photos &amp; Videos</h2>
+        <p class="section-desc">Share your wedding memories with everyone. Supports JPEG, PNG, HEIC, MP4 and more.</p>
+      </div>
+      <div class="upload-area" id="drop-zone" role="button" tabindex="0"
+           aria-label="Click or drag files here to upload">
+        <span class="upload-icon" aria-hidden="true">📸</span>
+        <p class="upload-prompt"><strong>Tap to choose or drag &amp; drop</strong></p>
+        <p class="upload-hint">JPEG · PNG · HEIC · MP4 · MOV (max 100 MB)</p>
+        <input id="file-input" type="file" accept="image/*,video/mp4,video/quicktime" multiple hidden
+               aria-label="Select files to upload" />
+      </div>
+      <div id="upload-queue" class="upload-queue" aria-live="polite"></div>
+      <button id="upload-btn" class="btn btn-primary upload-submit" disabled>
+        Upload Selected Files
+      </button>
+    </section>
+
+    <!-- ── Selfie Search Section ────────────────────────────────────── -->
+    <section id="section-search" class="section hidden" aria-label="Find My Photos">
+      <div class="section-header">
+        <h2>Find Your Photos</h2>
+        <p class="section-desc">Upload a clear selfie and we'll find all wedding photos you appear in using AI facial recognition.</p>
+      </div>
+      <div class="selfie-area">
+        <div class="selfie-preview-wrapper">
+          <img id="selfie-preview" src="" alt="" class="selfie-preview hidden" />
+          <div id="selfie-placeholder" class="selfie-placeholder" aria-hidden="true">
+            <span>🤳</span>
+            <p>No selfie selected</p>
+          </div>
+        </div>
+        <input id="selfie-input" type="file" accept="image/*" hidden aria-label="Choose selfie" />
+        <div class="selfie-actions">
+          <button id="selfie-choose-btn" class="btn btn-outline">Choose Selfie</button>
+          <button id="selfie-search-btn" class="btn btn-primary" disabled>Search My Photos</button>
+        </div>
+      </div>
+      <div id="search-results" class="search-results" aria-live="polite">
+        <div id="search-empty" class="empty-state hidden">
+          <span aria-hidden="true">🔍</span>
+          <p>No results yet. Upload a selfie to begin.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Couple Photos Section ────────────────────────────────────── -->
+    <section id="section-couple" class="section hidden" aria-label="Couple Photos">
+      <div class="section-header">
+        <h2>Photos of Sarah &amp; James</h2>
+        <p class="section-desc">A curated collection of photos featuring the happy couple.</p>
+      </div>
+      <div id="couple-grid" class="photo-grid" role="list" aria-live="polite" aria-label="Couple photos">
+        <div class="loading-spinner" id="couple-spinner">
+          <div class="spinner"></div>
+          <p>Loading couple photos…</p>
+        </div>
+      </div>
+      <div class="pagination">
+        <button id="couple-prev-btn" class="btn btn-outline" disabled>← Previous</button>
+        <button id="couple-next-btn" class="btn btn-outline" disabled>Next →</button>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ── Lightbox ──────────────────────────────────────────────────── -->
+  <div id="lightbox" class="lightbox" role="dialog" aria-modal="true" aria-label="Photo viewer" hidden>
+    <button class="lightbox-close" id="lightbox-close" aria-label="Close viewer">&times;</button>
+    <button class="lightbox-prev" id="lightbox-prev" aria-label="Previous photo">&#8249;</button>
+    <button class="lightbox-next" id="lightbox-next" aria-label="Next photo">&#8250;</button>
+    <div class="lightbox-inner">
+      <img id="lightbox-img" src="" alt="Full size wedding photo" />
+      <video id="lightbox-video" controls hidden>
+        <track kind="captions" />
+      </video>
+    </div>
+    <a id="lightbox-download" href="#" download class="btn btn-primary lightbox-download-btn">
+      ⬇ Download
+    </a>
+  </div>
+
+  <!-- ── Toast Notifications ─────────────────────────────────────── -->
+  <div id="toast-container" class="toast-container" aria-live="assertive" aria-atomic="true"></div>
+
+  <footer class="footer" role="contentinfo">
+    <p>With love · Sarah &amp; James · June 15, 2024 · Made with AWS Serverless &amp; AI</p>
+  </footer>
+
+  <script src="js/app.js"></script>
+</body>
+</html>
