@@ -37,3 +37,17 @@ htmlcov/
 # Environment files
 .env
 *.env
+
+# Terraform state, lock file, local overrides, and build artefacts
+terraform/.terraform/
+terraform/.terraform.lock.hcl
+terraform/terraform.tfstate
+terraform/terraform.tfstate.backup
+terraform/terraform.tfstate.*.backup
+terraform/*.tfvars
+terraform/.lambda_builds/
+terraform/crash.log
+terraform/override.tf
+terraform/override.tf.json
+terraform/*_override.tf
+terraform/*_override.tf.json
