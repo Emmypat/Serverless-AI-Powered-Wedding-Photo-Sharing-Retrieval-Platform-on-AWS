@@ -1,0 +1,1 @@
+# Serverless-AI-Powered-Wedding-Photo-Sharing-Retrieval-Platform-on-AWS
