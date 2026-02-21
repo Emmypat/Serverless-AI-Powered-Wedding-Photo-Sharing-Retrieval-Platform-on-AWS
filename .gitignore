@@ -12,7 +12,6 @@ build/
 # SAM build artifacts
 .aws-sam/
 packaged.yaml
-samconfig.toml
 
 # Virtual environments
 .venv/
