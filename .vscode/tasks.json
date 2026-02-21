@@ -1,0 +1,110 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    // ── Install dependencies ──────────────────────────────────────────────────
+    {
+      "label": "install",
+      "type": "shell",
+      "command": "pip install -r requirements.txt",
+      "group": "build",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+
+    // ── Run all unit tests ────────────────────────────────────────────────────
+    {
+      "label": "test",
+      "type": "shell",
+      "command": "pytest tests/unit/ -v --tb=short",
+      "group": {
+        "kind": "test",
+        "isDefault": true
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+
+    // ── Run tests with coverage ───────────────────────────────────────────────
+    {
+      "label": "test:coverage",
+      "type": "shell",
+      "command": "pytest tests/unit/ -v --cov=src --cov-report=term-missing",
+      "group": "test",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+
+    // ── Lint with flake8 ──────────────────────────────────────────────────────
+    {
+      "label": "lint",
+      "type": "shell",
+      "command": "flake8 src/ --max-line-length=120 --extend-ignore=E501",
+      "group": "build",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": {
+        "owner": "python",
+        "fileLocation": ["relative", "${workspaceFolder}"],
+        "pattern": {
+          "regexp": "^(.+):(\\d+):(\\d+):\\s+(\\w+\\d+)\\s+(.+)$",
+          "file": 1,
+          "line": 2,
+          "column": 3,
+          "code": 4,
+          "message": 5
+        }
+      }
+    },
+
+    // ── SAM build ─────────────────────────────────────────────────────────────
+    {
+      "label": "sam:build",
+      "type": "shell",
+      "command": "sam build --parallel",
+      "group": "build",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+
+    // ── SAM validate ─────────────────────────────────────────────────────────
+    {
+      "label": "sam:validate",
+      "type": "shell",
+      "command": "sam validate --lint",
+      "group": "build",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+
+    // ── SAM local API ─────────────────────────────────────────────────────────
+    {
+      "label": "sam:local-api",
+      "type": "shell",
+      "command": "sam local start-api --parameter-overrides 'Environment=dev CoupleFaceIds=\"\"'",
+      "group": "build",
+      "isBackground": true,
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      },
+      "problemMatcher": []
+    }
+  ]
+}

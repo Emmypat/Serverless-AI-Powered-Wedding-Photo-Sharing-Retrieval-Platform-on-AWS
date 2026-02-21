@@ -1,0 +1,44 @@
+# AWS SAM CLI deployment configuration
+# https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-sam-cli-config.html
+#
+# Usage:
+#   First-time deploy:  sam deploy --guided
+#   Subsequent deploys: sam deploy
+#   Local testing:      sam local start-api
+
+version = 0.1
+
+# ── Default (development) environment ─────────────────────────────────────────
+[default.global.parameters]
+stack_name = "wedding-platform"
+
+[default.build.parameters]
+parallel = true
+
+[default.validate.parameters]
+lint = true
+
+[default.deploy.parameters]
+stack_name          = "wedding-platform"
+s3_prefix           = "wedding-platform"
+region              = "us-east-1"
+confirm_changeset   = true
+capabilities        = ["CAPABILITY_IAM", "CAPABILITY_NAMED_IAM"]
+resolve_s3          = true
+# Set CoupleFaceIds after enrolling the couple's faces (see IMPLEMENTATION.md)
+parameter_overrides = "Environment=dev CoupleFaceIds=\"\""
+
+[default.local_start_api.parameters]
+parameter_overrides = "Environment=dev CoupleFaceIds=\"\""
+warm_containers     = "EAGER"
+
+# ── Production environment ─────────────────────────────────────────────────────
+# Deploy with: sam deploy --config-env prod
+[prod.deploy.parameters]
+stack_name          = "wedding-platform-prod"
+s3_prefix           = "wedding-platform-prod"
+region              = "us-east-1"
+confirm_changeset   = true
+capabilities        = ["CAPABILITY_IAM", "CAPABILITY_NAMED_IAM"]
+resolve_s3          = true
+parameter_overrides = "Environment=prod CoupleFaceIds=\"\""

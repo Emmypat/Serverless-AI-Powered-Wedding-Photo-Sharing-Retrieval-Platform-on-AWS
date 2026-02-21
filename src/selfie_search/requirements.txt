@@ -1,0 +1,2 @@
+# boto3 is provided by the Lambda runtime; list any extra packages here.
+# This file is intentionally minimal — add third-party dependencies if needed.

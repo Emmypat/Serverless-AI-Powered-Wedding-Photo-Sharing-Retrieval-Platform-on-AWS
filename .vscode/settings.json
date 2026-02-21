@@ -1,0 +1,75 @@
+{
+  // ── Python ─────────────────────────────────────────────────────────────────
+  "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python",
+
+  // Test discovery
+  "python.testing.pytestEnabled": true,
+  "python.testing.unittestEnabled": false,
+  "python.testing.pytestArgs": ["tests/unit", "-v"],
+
+  // Linting / formatting
+  "python.linting.enabled": true,
+  "python.linting.flake8Enabled": true,
+  "python.linting.flake8Args": ["--max-line-length=120", "--extend-ignore=E501"],
+  "python.formatting.provider": "none",
+  "[python]": {
+    "editor.formatOnSave": false,
+    "editor.rulers": [120]
+  },
+
+  // ── Editor ─────────────────────────────────────────────────────────────────
+  "editor.tabSize": 4,
+  "editor.insertSpaces": true,
+  "editor.trimAutoWhitespace": true,
+  "files.trimTrailingWhitespace": true,
+  "files.insertFinalNewline": true,
+
+  // ── YAML (SAM templates, GitHub Actions) ───────────────────────────────────
+  "yaml.schemas": {
+    "https://raw.githubusercontent.com/aws/serverless-application-model/main/samtranslator/schema/schema.json": "template.yaml"
+  },
+  "[yaml]": {
+    "editor.tabSize": 2
+  },
+
+  // ── Terraform ──────────────────────────────────────────────────────────────
+  "[terraform]": {
+    "editor.defaultFormatter": "hashicorp.terraform",
+    "editor.formatOnSave": true,
+    "editor.tabSize": 2
+  },
+  "[terraform-vars]": {
+    "editor.defaultFormatter": "hashicorp.terraform",
+    "editor.formatOnSave": true
+  },
+
+  // ── HTML / CSS / JS (frontend) ─────────────────────────────────────────────
+  "[html]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.tabSize": 2
+  },
+  "[css]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.tabSize": 2
+  },
+  "[javascript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.tabSize": 2
+  },
+
+  // ── File associations ──────────────────────────────────────────────────────
+  "files.associations": {
+    "*.tf": "terraform",
+    "*.tfvars": "terraform",
+    "samconfig.toml": "toml"
+  },
+
+  // ── Explorer ───────────────────────────────────────────────────────────────
+  "files.exclude": {
+    "**/__pycache__": true,
+    "**/*.pyc": true,
+    "**/.pytest_cache": true,
+    "**/.aws-sam": true,
+    "**/terraform/.terraform": true
+  }
+}

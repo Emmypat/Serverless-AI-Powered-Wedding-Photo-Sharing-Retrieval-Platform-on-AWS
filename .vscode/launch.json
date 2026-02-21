@@ -1,0 +1,66 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    // ── Run all unit tests ────────────────────────────────────────────────────
+    {
+      "name": "pytest: All Tests",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "pytest",
+      "args": ["tests/unit/", "-v", "--tb=short"],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "AWS_DEFAULT_REGION": "us-east-1",
+        "AWS_ACCESS_KEY_ID": "testing",
+        "AWS_SECRET_ACCESS_KEY": "testing"
+      },
+      "console": "integratedTerminal",
+      "justMyCode": false
+    },
+
+    // ── Debug a single test file (edit the path as needed) ────────────────────
+    {
+      "name": "pytest: Current File",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "pytest",
+      "args": ["${file}", "-v", "--tb=long"],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "AWS_DEFAULT_REGION": "us-east-1",
+        "AWS_ACCESS_KEY_ID": "testing",
+        "AWS_SECRET_ACCESS_KEY": "testing"
+      },
+      "console": "integratedTerminal",
+      "justMyCode": false
+    },
+
+    // ── Run upload_handler tests only ────────────────────────────────────────
+    {
+      "name": "pytest: Upload Handler",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "pytest",
+      "args": ["tests/unit/test_upload_handler.py", "-v"],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "AWS_DEFAULT_REGION": "us-east-1",
+        "AWS_ACCESS_KEY_ID": "testing",
+        "AWS_SECRET_ACCESS_KEY": "testing"
+      },
+      "console": "integratedTerminal",
+      "justMyCode": false
+    },
+
+    // ── Debug a Lambda handler script directly ────────────────────────────────
+    {
+      "name": "Python: Current File",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${file}",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "justMyCode": true
+    }
+  ]
+}
