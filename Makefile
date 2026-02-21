@@ -54,13 +54,32 @@ deploy-guided: build ## Guided first-time deploy (interactive)
 	sam deploy --guided
 
 # ── Frontend ───────────────────────────────────────────────────────────────────
-deploy-frontend: ## Sync the frontend to the S3 frontend bucket
-	@FRONTEND_BUCKET=$$(aws cloudformation describe-stacks \
-	  --stack-name $(STACK_NAME) --region $(REGION) \
-	  --query "Stacks[0].Outputs[?OutputKey=='FrontendBucketName'].OutputValue" \
-	  --output text); \
+deploy-frontend: ## Inject config, sync the frontend to S3, and invalidate CloudFront
+	@API_URL=$$(aws cloudformation describe-stacks --stack-name $(STACK_NAME) --region $(REGION) \
+	  --query "Stacks[0].Outputs[?OutputKey=='ApiEndpoint'].OutputValue" --output text); \
+	FRONTEND_BUCKET=$$(aws cloudformation describe-stacks --stack-name $(STACK_NAME) --region $(REGION) \
+	  --query "Stacks[0].Outputs[?OutputKey=='FrontendBucketName'].OutputValue" --output text); \
+	USER_POOL_ID=$$(aws cloudformation describe-stacks --stack-name $(STACK_NAME) --region $(REGION) \
+	  --query "Stacks[0].Outputs[?OutputKey=='UserPoolId'].OutputValue" --output text); \
+	USER_POOL_CLIENT=$$(aws cloudformation describe-stacks --stack-name $(STACK_NAME) --region $(REGION) \
+	  --query "Stacks[0].Outputs[?OutputKey=='UserPoolClientId'].OutputValue" --output text); \
+	TMPFILE=$$(mktemp); \
+	cp frontend/js/config.js "$$TMPFILE"; \
+	trap 'cp "$$TMPFILE" frontend/js/config.js; rm -f "$$TMPFILE"' EXIT INT TERM; \
+	perl -i -pe "s|https://YOUR_API_GATEWAY_URL/dev|$$API_URL|g; \
+	   s|us-east-1_EXAMPLE|$$USER_POOL_ID|g; \
+	   s|EXAMPLE_CLIENT_ID|$$USER_POOL_CLIENT|g; \
+	   s|AWS_REGION_PLACEHOLDER|$(REGION)|g" \
+	  frontend/js/config.js; \
 	echo "Deploying frontend to s3://$$FRONTEND_BUCKET"; \
-	aws s3 sync frontend/ s3://$$FRONTEND_BUCKET/ --delete
+	aws s3 sync frontend/ s3://$$FRONTEND_BUCKET/ --delete || { echo "ERROR: S3 sync failed"; exit 1; }; \
+	DIST_ID=$$(aws cloudfront list-distributions \
+	  --query "DistributionList.Items[?contains(Origins.Items[0].DomainName,'$$FRONTEND_BUCKET')].Id" \
+	  --output text 2>/dev/null); \
+	if [ -n "$$DIST_ID" ]; then \
+	  aws cloudfront create-invalidation --distribution-id $$DIST_ID --paths "/*" > /dev/null; \
+	  echo "CloudFront cache invalidated ($$DIST_ID)"; \
+	fi
 
 # ── Clean-up ───────────────────────────────────────────────────────────────────
 clean: ## Remove SAM build artefacts and Python cache

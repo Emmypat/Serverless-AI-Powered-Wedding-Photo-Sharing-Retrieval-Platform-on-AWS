@@ -1,0 +1,31 @@
+{
+  // Recommended extensions for the Wedding Photo Sharing Platform.
+  // VS Code will prompt to install these when the workspace is first opened.
+  "recommendations": [
+    // Python development
+    "ms-python.python",
+    "ms-python.vscode-pylance",
+    "ms-python.debugpy",
+
+    // AWS
+    "amazonwebservices.aws-toolkit-vscode",
+
+    // Terraform / Infrastructure-as-Code
+    "hashicorp.terraform",
+
+    // YAML (SAM template, GitHub Actions)
+    "redhat.vscode-yaml",
+
+    // Code quality
+    "ms-python.flake8",
+
+    // JSON / formatting
+    "esbenp.prettier-vscode",
+
+    // Git helpers
+    "eamodio.gitlens",
+
+    // Spell-check for documentation
+    "streetsidesoftware.code-spell-checker"
+  ]
+}

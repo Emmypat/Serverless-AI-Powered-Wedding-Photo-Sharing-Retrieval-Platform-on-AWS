@@ -1,0 +1,30 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# terraform.tfvars.example
+#
+# Copy this file to terraform/terraform.tfvars and fill in your values.
+# terraform.tfvars is gitignored so secrets never land in version control.
+#
+#   cp terraform/terraform.tfvars.example terraform/terraform.tfvars
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Unique name for the stack (used as a suffix on all resource names).
+# Keep it short, lowercase, alphanumeric and hyphens only.
+stack_name = "wedding-platform"
+
+# Target AWS region.
+aws_region = "us-east-1"
+
+# Deployment environment label.
+# Allowed values: dev | staging | prod
+environment = "dev"
+
+# Comma-separated Rekognition FaceIds for both members of the couple.
+# Leave blank ("") during initial deployment; populate after running the
+# couple face-enrolment step in IMPLEMENTATION.md (section 7.3).
+#
+# Example (fill in real FaceIds from 'aws rekognition list-faces'):
+#   couple_face_ids = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee,ffffffff-gggg-hhhh-iiii-jjjjjjjjjjjj"
+couple_face_ids = ""
+
+# Expiry for presigned upload URLs (seconds).  Default: 3600 (1 hour).
+# upload_url_expiry_seconds = 3600

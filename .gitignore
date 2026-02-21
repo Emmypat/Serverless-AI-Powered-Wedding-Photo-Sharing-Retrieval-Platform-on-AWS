@@ -19,10 +19,12 @@ venv/
 env/
 
 # IDE
-.vscode/
 .idea/
 *.swp
 *.swo
+# Allow committed VS Code workspace config (extensions, launch, tasks, settings)
+# but ignore any personal overrides
+.vscode/*.local.json
 
 # OS
 .DS_Store
